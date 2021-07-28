@@ -1,0 +1,11 @@
+# Local machine specific configuration
+# Where to mount /usr/data and /usr/data_ro
+mounts:
+  # mounted at /usr/data_ro/
+  data_ro: '/$(pwd)/data/docker_ro/'
+  # mounted at /usr/data/
+  data: '/$(pwd)/data/docker/'
+  # mounted at /usr/brats/
+  brats: '/$(pwd)/data/BrATS/'
+  # mounted at /usr/brats_cache/
+  brats_cache: '/$(pwd)/data/brats_cache/'

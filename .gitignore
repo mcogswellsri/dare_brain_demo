@@ -1,0 +1,14 @@
+data/BrATS/
+data/brats_cache/
+data/docker/
+data/docker_ro/
+demo_unet/*.pkl
+attUNet_BraTS_Segmentation_2D/model_weights/
+run_data/
+
+**.swp
+**.swo
+
+**.ipynb_checkpoints/
+
+**__pycache__/

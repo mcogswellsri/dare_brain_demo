@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>XAI-DARE Counterfactual Explanations Demo</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    <script src="https://d3js.org/d3.v4.js"></script>
+</head>
+<style>
+.counterfactual tr:nth-child(even) {
+  background-color: #cfcfcf;
+}
+.counterfactual td {
+  padding: 8pt;
+}
+.maindiv {
+  width: 90%;
+  margin: auto;
+}
+.image_table th {
+      text-align: center;
+}
+
+div canvas:hover {
+    transform: scale(1.7);
+}
+
+.button {
+  background-color: #028D9D;
+  border: none;
+  color: white;
+  padding: 5px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 10px;
+  margin: 2px 2px;
+}
+
+.button1 {border-radius: 2px;}
+.button2 {border-radius: 4px;}
+.button3 {border-radius: 8px;}
+.button4 {border-radius: 12px;}
+.button5 {border-radius: 50%;}
+
+.selected {
+  border: 5px solid orange;
+}
+
+/* TODO: cite https://tutorialzine.com/2014/07/css-inline-help-tips */
+.help-tip{
+    position: absolute;
+    top: 1px;
+    right: 1px;
+    text-align: center;
+    background-color: #BCDBEA;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    font-size: 14px;
+    line-height: 26px;
+    cursor: default;
+}
+
+.help-tip:before{
+    content:'?';
+    font-weight: bold;
+    color:#fff;
+}
+
+.help-tip:hover div{
+    display:block;
+    transform-origin: 100% 0%;
+
+    -webkit-animation: fadeIn 0.3s ease-in-out;
+    animation: fadeIn 0.3s ease-in-out;
+
+}
+
+.help-tip div{    /* The tooltip */
+    position: absolute;
+    display: none;
+    z-index: 20;
+    text-align: left;
+    background-color: #1E2021;
+    padding: 20px;
+    width: 600px;
+    border-radius: 3px;
+    box-shadow: 1px 1px 1px rgba(0, 0, 0, 0.2);
+    right: -4px;
+    color: #FFF;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.help-tip div:before{ /* The pointer of the tooltip */
+    position: absolute;
+    content: '';
+    width:0;
+    height: 0;
+    border:6px solid transparent;
+    border-bottom-color:#1E2021;
+    right:10px;
+    top:-12px;
+}
+
+.help-tip div:after{ /* Prevents the tooltip from being hidden */
+    position: absolute;
+    width:100%;
+    height:40px;
+    content:'';
+    top:-40px;
+    left:0;
+}
+
+/* CSS animation */
+
+@-webkit-keyframes fadeIn {
+    0% {
+        opacity:0;
+        transform: scale(0.6);
+    }
+
+    100% {
+        opacity:100%;
+        transform: scale(1);
+    }
+}
+
+@keyframes fadeIn {
+    0% { opacity:0; }
+    100% { opacity:100%; }
+}
+
+
+.color-box {
+    width: 13px;
+    height: 13px;
+    display: inline-block;
+    background-color: #ccc;
+}
+</style>
+<body>
+
+
+<div class="maindiv">
+<h3 style="background-color:#028D9D;padding: 5px;color: white;" align='center'>
+    XAI-DARE Brain Tumor Imaging Demo
+</h3>
+<img src='' id='dummy_img' style='display:none;'></img> <!-- -->
+
+
+
+	<!-- Working set -->
+	<div>
+		<table class="table">
+			<!-- Titles -->
+			<!--<tr>
+				<th style="text-align:center;">Load Image</th>
+				<th style="text-align:center;">Image</th>
+				<th style="text-align:center;">Counterfactual Image</th>
+			</tr> -->
+			<tr>
+				<!-- Quick select bar -->
+				<td>
+					<table>
+					<tr><td>
+						<div  style="width:80px; height:500px; overflow:auto;">
+						<table style='width:80px' id='imselect_table'>
+							<tr><td></td></tr>
+						</table>
+						</div>
+					</td></tr>
+          <!--
+					<tr><td>
+						<textarea style="width:80px;height 100px;" placeholder="https://" id='webim'></textarea>
+					</td></tr>
+					<tr><td>
+						<button style='width:80px; height 80px;background-color: #CCCCCC;' onclick='load_custom_im()'>Load web image .. </button>
+					</td></tr>
+          -->
+					</table>
+                    <!--
+                        <div class="help-tip">
+                            <div>
+                            <p> This shows all viewable slices of the selected brain, with
+                            the currently selected one outlined in orange.
+                            Click on a slice to switch all images in the main view
+                            to that slice. </p>
+                            </div>
+                        </div>
+                    -->
+				</td>
+				<!-- Table of images (columns = modalities, rows = different visualizations)-->
+  			<td>
+					<table id="image_table" class="counterfactual">
+						<tr>
+							<th></th>
+							<th>T1</th>
+							<th>T2</th>
+							<th>T2 Flair</th>
+							<th>T1 Contrast Enhancing</th>
+						</tr>
+					</table>
+
+                    <br>
+                    <button style='text-align:center;font-size:14px;' onclick='add_image_row(true)'>Add Row</button>
+  			</td>
+        <td>
+					<table class="counterfactual">
+
+						<tr><td>
+                      <!-- div for help tip positioning -->
+              <div style="position:relative;">
+                <h4 style="text-align:center;">Overview</h4> <br>
+                    <p> Each visualization in the main view looks at the same single slice
+                    of brain through a different lens. Different columns show different
+                    sequences/modalities, images of the same brain taken under
+                    different conditions.
+                    Rows add different explanatory visualization to these base
+                    images. Each row is labeled with the kind of visual overlays
+                    it is currently showing. </p>
+                   
+                    <p> By selecting a row by clicking
+                    on it (the current one is outlined in orange) you can view
+                    and change its current configuration in the panel on the right.</p>
+
+                    <p> The current brain and slice can be changed by clicking on different
+                    brains at the bottom of the screen and different slices in the left panel.</p>
+
+                    <p> There are two types of explanations: counterfactuals and GradCAMs.
+                    Mouse over the "?" in the appropriate panel to detail these explanations
+                    further. </p>
+              </div>
+						</td></tr>
+
+						<tr style="text-align:center;"><td>
+              <!-- div for help tip positioning -->
+              <div style="position:relative;">
+                <h4>Ground Truth</h4> <br>
+                <label class="checkbox-inline">
+                  <input type="checkbox" onclick="toggle_segment(this)" class="segment_check" id="check_gt_ET" value="gt_ET">
+                  Enhancing Tumor <div id="legend_div_gt_ET" class="color-box"></div>
+                </label>
+                <label class="checkbox-inline">
+                  <input type="checkbox" onclick="toggle_segment(this)" class="segment_check" id="check_gt_TC" value="gt_TC">
+                  Tumor Core <div id="legend_div_gt_TC" class="color-box"></div>
+                </label>
+                <label class="checkbox-inline">
+                  <input type="checkbox" onclick="toggle_segment(this)" class="segment_check" id="check_gt_WT" value="gt_WT">
+                  Whole Tumor <div id="legend_div_gt_WT" class="color-box"></div>
+                </label>
+                <div class="help-tip">
+                    <div>
+                    <p>These are the 3 types of tumors defined by BraTS. Check a box to overlay/remove the corresponding ground truth (committee consensus) tumor annotation.</p>
+                    </div>
+                </div>
+              </div>
+						</td></tr>
+						<tr style="text-align:center;"><td>
+              <!-- div for help tip positioning -->
+              <div style="position:relative;">
+                <h4>Automatic Segmentation Prediction</h4> <br>
+                <label class="checkbox-inline">
+                  <input type="checkbox" onclick="toggle_segment(this)" class="segment_check" id="check_pred_ET" value="pred_ET">
+                  Enhancing Tumor <div id="legend_div_pred_ET" class="color-box"></div>
+                </label>
+                <label class="checkbox-inline">
+                  <input type="checkbox" onclick="toggle_segment(this)" class="segment_check" id="check_pred_TC" value="pred_TC">
+                  Tumor Core <div id="legend_div_pred_TC" class="color-box"></div>
+                </label>
+                <label class="checkbox-inline">
+                  <input type="checkbox" onclick="toggle_segment(this)" class="segment_check" id="check_pred_WT" value="pred_WT">
+                  Whole Tumor <div id="legend_div_pred_WT" class="color-box"></div>
+                </label>
+                <br>
+                <div style="display: none">
+                <label class="checkbox-inline">
+                  <input type="checkbox" onclick="toggle_segment(this)" class="segment_check" id="check_pred_CSF" value="pred_CSF">
+                  CSF<div id="legend_div_pred_CSF" class="color-box"></div>
+                </label>
+                <label class="checkbox-inline">
+                  <input type="checkbox" onclick="toggle_segment(this)" class="segment_check" id="check_pred_GM" value="pred_GM">
+                  Grey Matter<div id="legend_div_pred_GM" class="color-box"></div>
+                </label>
+                <label class="checkbox-inline">
+                  <input type="checkbox" onclick="toggle_segment(this)" class="segment_check" id="check_pred_WM" value="pred_WM">
+                  White Matter <div id="legend_div_pred_WM" class="color-box"></div>
+                </label>
+                </div>
+                <div class="help-tip">
+                    <div>
+                    <p>These are the 3 types of tumors defined by BraTS. Check a box to overlay/remove the corresponding tumor segment as predicted by our model.</p>
+                    </div>
+                </div>
+              </div>
+						</td></tr>
+
+						<tr style="text-align:center;"><td>
+              <div style="position:relative;">
+                <h4>Counterfactual</h4>
+                <div class="help-tip">
+                    <div>
+                    <p>
+                    These counterfactual explanations generate segmentations of
+                    slightly different brains to see which modalities most
+                    impact segmentation performance. This involves a few steps,
+                    each of which can be visualized by selecting the corresponding
+                    check box.
+                    </p>
+
+                    <p>
+                    The eventual output is a number, shown above each image when
+                    the <b>Counterfactual Attributions</b> box is checked, indicating
+                    whether that modality (column) is
+                    rather important for correct segmentation (red, close to 1),
+                    has little impact on segmentation output (white, close to 0),
+                    or actually misleads the model into produce an incorrect segmentation (blue, close to -1).
+                    </p>
+
+                    <p>
+                    A few steps are required to generate this explanation.
+                    The first is to generate a different version of the same.
+                    We generate four different versions, one for each modality.
+                    For example, the T1 counterfactual brain is generated by
+                    removing the box indicated when <b>Show Inpaint Box</b>
+                    is selected then "inpainting" that region, attempting to
+                    synthesize what that would look like in a non-tumorous
+                    version of the same brain. The resulting image can be seen
+                    by checking <b>Show Inpaint Image</b>.
+                    </p>
+
+                    <p>
+                    Finally, a segmentation is generated for this inpainted image.
+                    It can be seen by checking <b>Counterfactual Segmentation</b>.
+                    This is different than the segmentation the model did for the
+                    original brain image. The number shown when Counterfactual
+                    Attributions is checked shows how much worse the
+                    segmentation got relative to the ground truth segmentation.
+                    A good model should get worse relative to the ground truth
+                    because it should not see tumor in the inpainted image.
+                    </p>
+                    </div>
+                </div>
+                <img src="/div_colorbar.png" style="height: 60px"></img>
+                <br>
+                <label class="checkbox-inline">
+                  <input type="checkbox" id="inpaint_show_box" onclick="draw_ui()">
+                  Show Inpaint Box
+                </label>
+                <label class="checkbox-inline">
+                  <input type="checkbox" id="inpaint_show_image" onclick="draw_ui()">
+                  Show Inpaint Image
+                </label>
+                <label class="checkbox-inline">
+                  <input type="checkbox" id="counter_seg" onclick="draw_ui()">
+                  Counterfactual Segmentation
+                </label>
+                <label class="checkbox-inline">
+                  <input type="checkbox" id="counter_attributions" onclick="draw_ui()">
+                  Counterfactual Attributions
+                </label>
+                <br>
+                <div id="counter_class_div">
+                  <label class="radio-inline">
+                    <input type="radio" name="counter_select" onclick="draw_ui()" value="None" checked="checked">
+                    None
+                  </label>
+                  <label class="radio-inline">
+                    <input type="radio" name="counter_select" onclick="draw_ui()" value="ET">
+                    Enhancing Tumor <div id="legend_div_counter_ET" class="color-box"></div>
+                  </label>
+                  <label class="radio-inline">
+                    <input type="radio" name="counter_select" onclick="draw_ui()" value="TC">
+                    Tumor Core <div id="legend_div_counter_TC" class="color-box"></div>
+                  </label>
+                  <label class="radio-inline">
+                    <input type="radio" name="counter_select" onclick="draw_ui()" value="WT">
+                    Whole Tumor <div id="legend_div_counter_WT" class="color-box"></div>
+                  </label>
+                </div>
+              </div>
+						</td></tr>
+
+						<tr style="text-align:center;"><td>
+              <div style="position:relative;">
+                <h4>GradCAM</h4>
+                <img src="/colorbar.png" style="height: 60px"></img>
+                <br>
+                Opacity: <input type="range" min="0" max="100" id="gradcam_opacity_slider">
+                <br>
+                Target Class: <br>
+                <label class="radio-inline">
+                  <input type="radio" name="gradcam_cls_select" value="None" checked>
+                  None
+                </label>
+                <label class="radio-inline">
+                  <input type="radio" name="gradcam_cls_select" value="ET">
+                  Enhancing Tumor
+                </label>
+                <label class="radio-inline">
+                  <input type="radio" name="gradcam_cls_select" value="TC">
+                  Tumor Core
+                </label>
+                <label class="radio-inline">
+                  <input type="radio" name="gradcam_cls_select" value="WT">
+                  Whole Tumor
+                </label>
+                <br>
+                <div style="display: none">
+                Normalization Type: <br>
+                <label class="radio-inline">
+                  <input type="radio" name="gradcam_norm_select" value="normal" checked>
+                  Standard (spatial max)
+                </label>
+                <label class="radio-inline">
+                  <input type="radio" name="gradcam_norm_select" value="pixelwise">
+                  Pixel-wise (ignores layers)
+                </label>
+                <br>
+                </div>
+                <div style="display: none">
+                Target Region: <br>
+                <label class="radio-inline">
+                  <input type="radio" name="gradcam_region_select" value="entire" checked>
+                  Entire Region of Tumor Class
+                </label>
+                <label class="radio-inline">
+                  <input type="radio" name="gradcam_region_select" value="fp">
+                  False Positives
+                </label>
+                <label class="radio-inline">
+                  <input type="radio" name="gradcam_region_select" value="fn">
+                  False Negatives
+                </label>
+                <br>
+                </div>
+                Layer: <br>
+                <label class="radio-inline">
+                  <input type="radio" name="gradcam_layer_select" value="l1_early" checked>
+                  Layer 1 Early
+                </label>
+                <label class="radio-inline">
+                  <input type="radio" name="gradcam_layer_select" value="l2_early">
+                  Layer 2 Early
+                </label>
+                <label class="radio-inline">
+                  <input type="radio" name="gradcam_layer_select" value="l3_early">
+                  Layer 3 Early
+                </label>
+                <label class="radio-inline">
+                  <input type="radio" name="gradcam_layer_select" value="l4_early">
+                  Layer 4 Early
+                </label>
+                <label class="radio-inline">
+                  <input type="radio" name="gradcam_layer_select" value="l1_late">
+                  Layer 1 Late
+                </label>
+                <label class="radio-inline">
+                  <input type="radio" name="gradcam_layer_select" value="l2_late">
+                  Layer 2 Late
+                </label>
+                <label class="radio-inline">
+                  <input type="radio" name="gradcam_layer_select" value="l3_late">
+                  Layer 3 Late
+                </label>
+                <label class="radio-inline">
+                  <input type="radio" name="gradcam_layer_select" value="l4_late">
+                  Layer 4 Late
+                </label>
+                <div class="help-tip">
+                    <div>
+                    <p>
+                    GradCAMs answer the question "Which regions of the image was
+                    the segmentation model looking at when it made its prediction?"
+                    It answers this in the form of heatmaps which highlight
+                    these "important" image regions and are overlaid on top
+                    of the brain images in this interface.
+                    </p>
+
+                    <p>
+                    <b>Target Class:</b>
+                    The model makes a different prediction for each type of tumor
+                    it segments.
+                    GradCAMs are generated to see where the model was
+                    looking when it made one of these predictions, so one
+                    of the tumor types must be selected.
+                    Select the target class and region which you
+                    would like GradCAM to explain.
+                    </p>
+
+                    <p>
+                    <b>Layers:</b>
+                    The segmentation model has multiple stages of processing
+                    that go in this order:<br>
+                    Layer 1 Early -&#62;
+                    Layer 2 Early -&#62;
+                    Layer 3 Early -&#62;
+                    Layer 4 Early -&#62;
+                    Layer 4 Late -&#62;
+                    Layer 3 Late -&#62;
+                    Layer 2 Late -&#62;
+                    Layer 1 Late <br>
+
+                    At each stage of processing it pays attention to different
+                    things. Select the stage of processing to inspect.
+                    </p>
+                    </div>
+                </div>
+              </div>
+						</td></tr>
+          </table>
+        </td>
+			</tr>
+		</table>
+	</div>
+	<!-- Navigation/store-->
+	<div>
+		<hr></hr>
+		<table>
+			<tr>
+				<th style="padding:10px;">
+					Exams
+				</th>
+				<td>
+					<div style="width:1400px; overflow:auto;">
+						<div style="display: inline-flex" id="entry_table">
+                            <div onclick="load_entry(0)"> Brain Id: 0  <img src="/thumbnails/0" entry_id="0" width="100" height="100"></div>
+							<div onclick="load_entry(1)"> Brain Id: 1  <img src="/thumbnails/1" entry_id="1" width="100" height="100"></div>
+							<div onclick="load_entry(2)"> Brain Id: 2  <img src="/thumbnails/2" entry_id="2" width="100" height="100"></div>
+							<div onclick="load_entry(3)"> Brain Id: 3  <img src="/thumbnails/3" entry_id="3" width="100" height="100"></div>
+							<div onclick="load_entry(4)"> Brain Id: 4  <img src="/thumbnails/4" entry_id="4" width="100" height="100"></div>
+							<div onclick="load_entry(5)"> Brain Id: 5  <img src="/thumbnails/5" entry_id="5" width="100" height="100"></div>
+							<div onclick="load_entry(6)"> Brain Id: 6  <img src="/thumbnails/6" entry_id="5" width="100" height="100"></div>
+							<div onclick="load_entry(7)"> Brain Id: 7  <img src="/thumbnails/7" entry_id="5" width="100" height="100"></div>
+							<div onclick="load_entry(8)"> Brain Id: 8  <img src="/thumbnails/8" entry_id="5" width="100" height="100"></div>
+							<div onclick="load_entry(9)"> Brain Id: 9  <img src="/thumbnails/9" entry_id="5" width="100" height="100"></div>
+							<div onclick="load_entry(10)">Brain Id: 10 <img src="/thumbnails/10" entry_id="5" width="100" height="100"></div>
+							<div onclick="load_entry(11)">Brain Id: 11 <img src="/thumbnails/11" entry_id="5" width="100" height="100"></div>
+							<div onclick="load_entry(12)">Brain Id: 12 <img src="/thumbnails/12" entry_id="5" width="100" height="100"></div>
+							<div onclick="load_entry(13)">Brain Id: 13 <img src="/thumbnails/13" entry_id="5" width="100" height="100"></div>
+							<div onclick="load_entry(14)">Brain Id: 14 <img src="/thumbnails/14" entry_id="5" width="100" height="100"></div>
+						</div>
+					</div>
+				</td>
+			</tr>
+		</table>
+	</div>
+
+
+</div>
+
+<script>
+
+var api='/api/';
+var base_url='/';
+
+
+//Create state variables for interface elements
+//var current_set={set:'original',upd:true}; // or counterfactual
+//var current_model={model:0,upd:true,models:[]};
+var imselect={ims:[],upd:true}; // Sidebar for quick image selection
+//var interactions={
+//		spatial_attn:-1,
+//		object_attn:-1,
+//		upd:true
+//	}; // Interaction with the explanation tool. Word/bbox picked
+
+var orig, counterfactual;
+var entries=[];
+var entry_update = false;
+var num_rows = 0;
+var current_row = null;
+var row_states = [];
+// first example
+//var global_entry_id = 0;
+//var global_slice_id = 76;
+
+// weird counterfactual
+var global_entry_id = 2;
+var global_slice_id = 60;
+var current_config = {
+    // 0 to N-1, the list of BraTS ids is specified server side
+    entry_id: global_entry_id,
+    slice_id: global_slice_id,
+    segments: [],
+};
+var default_ui_state = $.extend(true, {}, get_ui_state());
+
+
+// Overlay segmentation
+function toggle_segment(checkbox){
+  var source, label;
+  if (checkbox.value == "gt_ET") {
+    source = "gt";
+    label = "ET";
+  } else if (checkbox.value == "gt_TC") {
+    source = "gt";
+    label = "TC";
+  } else if (checkbox.value == "gt_WT") {
+    source = "gt";
+    label = "WT";
+  } else if (checkbox.value == "pred_ET") {
+    source = "pred";
+    label = "ET";
+  } else if (checkbox.value == "pred_TC") {
+    source = "pred";
+    label = "TC";
+  } else if (checkbox.value == "pred_WT") {
+    source = "pred";
+    label = "WT";
+  } else if (checkbox.value == "counter_ET") {
+    source = "counter";
+    label = "ET";
+  } else if (checkbox.value == "counter_TC") {
+    source = "counter";
+    label = "TC";
+  } else if (checkbox.value == "counter_WT") {
+    source = "counter";
+    label = "WT";
+  } else if (checkbox.value == "pred_CSF") {
+    source = "pred";
+    label = "CSF";
+  } else if (checkbox.value == "pred_GM") {
+    source = "pred";
+    label = "GM";
+  } else if (checkbox.value == "pred_WM") {
+    source = "pred";
+    label = "WM";
+  } else if (checkbox.value == "counter_CSF") {
+    source = "counter";
+    label = "CSF";
+  } else if (checkbox.value == "counter_GM") {
+    source = "counter";
+    label = "GM";
+  } else if (checkbox.value == "counter_WM") {
+    source = "counter";
+    label = "WM";
+  }
+  if (!checkbox.checked) {
+      current_config.segments = current_config.segments.filter(function(segment) {
+          var is_current = (segment.source == source) && (segment.label == label);
+          return !is_current;
+      });
+  } else {
+      current_config.segments.push({
+          source: source,
+          label: label,
+          opacity: 1
+      });
+  }
+  draw_ui();
+}
+
+reset_original();
+reset_counterfactual();
+//Initialization
+function initialize(new_row){
+
+    current_config.slice_id = null;
+    current_config.has_counter_slice = false;
+    current_config.segments = [];
+    if (new_row) {
+        var new_state = $.extend(true, {}, default_ui_state);
+        new_state.counter_cls = "ET";
+        // counterfactual attributions check box
+        new_state.check_values[12] = true;
+        add_image_row(false, new_state);
+
+        var new_state = $.extend(true, {}, default_ui_state);
+        new_state.counter_cls = "TC";
+        // counterfactual attributions check box
+        new_state.check_values[12] = true;
+        add_image_row(false, new_state);
+
+        var new_state = $.extend(true, {}, default_ui_state);
+        new_state.counter_cls = "WT";
+        // counterfactual attributions check box
+        new_state.check_values[12] = true;
+        add_image_row(false, new_state);
+    }
+
+	list_ims();
+
+    // TODO: don't reset the slider after changing slices
+    // initialize opacity slider
+    d3.select("#gradcam_opacity_slider").on("input", function() {
+        var target_cls = d3.select('input[name="gradcam_cls_select"]:checked').node().value;
+        var has_gradcam = (target_cls != "None");
+        if (has_gradcam)  {
+            draw_ui();
+        }
+    });
+
+    d3.selectAll('input[name="gradcam_cls_select"]').on("click", draw_ui);
+    d3.selectAll('input[name="gradcam_norm_select"]').on("click", draw_ui);
+    d3.selectAll('input[name="gradcam_region_select"]').on("click", draw_ui);
+    d3.selectAll('input[name="gradcam_layer_select"]').on("click", draw_ui);
+
+  // initialize segmentation color legend
+  var xhr = new XMLHttpRequest();
+	xhr.open("POST", api, true);
+	xhr.setRequestHeader('Content-Type', 'application/json');
+	var msg={'method':'get_colors',"jsonrpc":"2.0",'id':'1','params':{}};
+	console.log(msg);
+	xhr.send(JSON.stringify(msg));
+	xhr.onload = function() {
+		console.log(this.responseText);
+		var data = JSON.parse(this.responseText)['result'];
+		console.log(data);
+    d3.select('#legend_div_gt_ET').style('background-color', data['gt_ET']);
+    d3.select('#legend_div_gt_TC').style('background-color', data['gt_TC']);
+    d3.select('#legend_div_gt_WT').style('background-color', data['gt_WT']);
+    d3.select('#legend_div_pred_ET').style('background-color', data['pred_ET']);
+    d3.select('#legend_div_pred_TC').style('background-color', data['pred_TC']);
+    d3.select('#legend_div_pred_WT').style('background-color', data['pred_WT']);
+    d3.select('#legend_div_counter_ET').style('background-color', data['counterfactual_ET']);
+    d3.select('#legend_div_counter_TC').style('background-color', data['counterfactual_TC']);
+    d3.select('#legend_div_counter_WT').style('background-color', data['counterfactual_WT']);
+    d3.select('#legend_div_pred_CSF').style('background-color', data['pred_CSF']);
+    d3.select('#legend_div_pred_GM').style('background-color', data['pred_GM']);
+    d3.select('#legend_div_pred_WM').style('background-color', data['pred_WM']);
+    d3.select('#legend_div_counter_CSF').style('background-color', data['counterfactual_CSF']);
+    d3.select('#legend_div_counter_GM').style('background-color', data['counterfactual_GM']);
+    d3.select('#legend_div_counter_WM').style('background-color', data['counterfactual_WM']);
+	}
+
+}
+//Resetting
+function reset_counterfactual(){
+	counterfactual={
+		imurls: [],
+    gcamurls: [],
+		edit: null,
+	};
+	edit={x0:[-1,-1],x1:[-1,-1],mouse_down:false};
+}
+function reset_original(){
+	orig={
+		imurl:'',
+	};
+	edit={x0:[-1,-1],x1:[-1,-1],mouse_down:false};
+}
+
+function use_image(url, slice_id){
+    global_slice_id = slice_id;
+    current_config.slice_id = slice_id;
+	orig.imurl=url;
+}
+
+
+//What happens when you click existing entries
+function load_entry(id){
+    global_entry_id = id;
+    global_slice_id = 76
+	current_config.entry_id = id;
+	current_config.slice_id = 76;
+	reset_original();
+	reset_counterfactual();
+    initialize();
+}
+
+function get_ui_state() {
+    var target_cls = d3.select('input[name="gradcam_cls_select"]:checked').node().value;
+    var norm_type = d3.select('input[name="gradcam_norm_select"]:checked').node().value;
+    var target_region = d3.select('input[name="gradcam_region_select"]:checked').node().value;
+    var layer = d3.select('input[name="gradcam_layer_select"]:checked').node().value;
+    var opacity = d3.select("#gradcam_opacity_slider").node().value;
+    var counter_cls = d3.select('input[name="counter_select"]:checked').node().value;
+    var check_values = [
+        d3.select("#check_gt_ET").property("checked"),
+        d3.select("#check_gt_TC").property("checked"),
+        d3.select("#check_gt_WT").property("checked"),
+        d3.select("#check_pred_ET").property("checked"),
+        d3.select("#check_pred_TC").property("checked"),
+        d3.select("#check_pred_WT").property("checked"),
+        d3.select("#check_pred_CSF").property("checked"),
+        d3.select("#check_pred_GM").property("checked"),
+        d3.select("#check_pred_WM").property("checked"),
+        d3.select("#inpaint_show_box").property("checked"),
+        d3.select("#inpaint_show_image").property("checked"),
+        d3.select("#counter_seg").property("checked"),
+        d3.select("#counter_attributions").property("checked")
+    ];
+
+    return {
+        "current_config": $.extend(true, {}, current_config),
+        "gradcam": {
+            "target_cls": target_cls,
+            "norm_type": norm_type,
+            "target_region": target_region,
+            "layer": layer,
+            "opacity": opacity,
+        },
+        "counter_cls": counter_cls,
+        "check_values": check_values
+    }
+}
+function set_ui_state(state) {
+    current_config = state["current_config"];
+    d3.selectAll('input[name="gradcam_cls_select"]')
+        .property("checked", function() { return (this.value == state.gradcam.target_cls); });
+    d3.selectAll('input[name="gradcam_norm_select"]')
+        .property("checked", function() { return (this.value == state.gradcam.norm_type); });
+    d3.selectAll('input[name="gradcam_region_select"]')
+        .property("checked", function() { return (this.value == state.gradcam.target_region); });
+    d3.selectAll('input[name="gradcam_layer_select"]')
+        .property("checked", function() { return (this.value == state.gradcam.layer); });
+    d3.select("#gradcam_opacity_slider").node().value = state.gradcam.opacity;
+    d3.selectAll('input[name="counter_select"]')
+        .property("checked", function() { return (this.value == state.counter_cls); });
+
+    d3.select("#check_gt_ET").property("checked",          state.check_values[0]);
+    d3.select("#check_gt_TC").property("checked",          state.check_values[1]);
+    d3.select("#check_gt_WT").property("checked",          state.check_values[2]);
+    d3.select("#check_pred_ET").property("checked",        state.check_values[3]);
+    d3.select("#check_pred_TC").property("checked",        state.check_values[4]);
+    d3.select("#check_pred_WT").property("checked",        state.check_values[5]);
+    d3.select("#check_pred_CSF").property("checked",       state.check_values[6]);
+    d3.select("#check_pred_GM").property("checked",        state.check_values[7]);
+    d3.select("#check_pred_WM").property("checked",        state.check_values[8]);
+    d3.select("#inpaint_show_box").property("checked",     state.check_values[9]);
+    d3.select("#inpaint_show_image").property("checked",   state.check_values[10]);
+    d3.select("#counter_seg").property("checked",          state.check_values[11]);
+    d3.select("#counter_attributions").property("checked", state.check_values[12]);
+}
+
+function add_image_row(update, new_state) {
+    if (new_state === undefined) {
+        new_state = default_ui_state;
+    }
+    row_states[current_row] = get_ui_state()
+    current_row = num_rows;
+    if (new_state === null) {
+        row_states.push(get_ui_state());
+    } else {
+        row_states.push(new_state);
+        set_ui_state(new_state);
+    }
+
+    var row = d3.select("#image_table")
+          .append("tr")
+          .datum(current_row)
+          .attr("id", "image_row_" + current_row);
+    row.append("th")
+        .attr("id", "th_label_" + current_row);
+    var tds = row.selectAll("td.img_cell")
+          .data(["t1", "t2", "t2flair", "t1ce"]);
+    var enter_tds = tds.enter()
+        .append("td")
+        .classed("img_cell", true);
+
+    enter_tds.append("div")
+        .attr("id", function(modality) {
+            return "stat_" + modality;
+        });
+    enter_tds.append("canvas")
+        .attr("width", 200)
+        .attr("height", 200)
+        .attr("id", function(modality) {
+            return "canvas_" + modality;
+        });
+    tds.merge(enter_tds);
+
+    row.on("click", function(row_id) {
+        var curr_state = get_ui_state();
+        row_states[current_row] = curr_state;
+        current_row = row_id;
+        curr_state = row_states[current_row];
+        set_ui_state(curr_state);
+        draw_ui();
+    });
+    num_rows += 1;
+
+    if (update) {
+        draw_ui();
+    }
+}
+
+
+//Interface functions
+//List quickselect images
+function list_ims(){
+	var xhr = new XMLHttpRequest();
+	xhr.open("POST", api, true);
+	xhr.setRequestHeader('Content-Type', 'application/json');
+	var params={};
+	var msg={'method':'list_ims',"jsonrpc":"2.0",'id':'1','params':params};
+	console.log(msg);
+	xhr.send(JSON.stringify(msg));
+	xhr.onload = function() {
+		console.log(this.responseText);
+		var data = JSON.parse(this.responseText)['result'];
+		console.log(data);
+		imselect = {
+            slice_ids: data['ims'],
+            upd: true
+        };
+		draw_ui();
+	}
+}
+
+// Generate counterfactual segmentation and update vis
+function generate_counterfactual() {
+  var imurl = orig.imurl;
+	var xhr = new XMLHttpRequest();
+	xhr.open("POST", api, true);
+	xhr.setRequestHeader('Content-Type', 'application/json');
+	var params = {
+    imurl: imurl,
+    misc: {}
+  };
+	var msg = {
+    'method': 'counterfactual',
+    'jsonrpc': '2.0',
+    'id': '1',
+    'params': params
+  };
+	console.log(msg);
+	xhr.send(JSON.stringify(msg));
+	xhr.onload = function() {
+    d3.select('#counter_class_div').style('visibility', 'visible');
+	}
+}
+
+//Huge function for everything
+function draw_ui(){
+    // Draw entry table
+    var entry_table = d3.select("#entry_table")
+        .selectAll("div")
+        .select("img")
+        .style("border", function() {
+            var entry_id = d3.select(this).attr("entry_id");
+            if (current_config.entry_id == entry_id) {
+                return "5px solid orange";
+            } else {
+                return "none";
+            }
+        });
+
+    // Draw quick select sidebar
+    var entry_id = global_entry_id;
+    //var entry_id = current_config.entry_id;
+    var imselect_rows = d3.select("#imselect_table")
+        .selectAll("tr")
+        .data(imselect.slice_ids);
+    imselect_rows.exit().remove();
+    var imselect_enter = imselect_rows.enter()
+        .append("tr")
+        .append("td");
+    imselect_enter.text(function(slice_id) {
+        return "Slice: " + slice_id;
+    });
+
+    var img_enter = imselect_enter.append("img")
+        .attr("width", 60)
+        .attr("height", 60)
+        .on("click", function(slice_id){
+            use_image(this.src, slice_id);
+            draw_ui();
+        });
+    imselect_rows.select("img")
+        .merge(img_enter)
+        .attr("src", function(slice_id) {
+            return base_url + 'slices/' + entry_id + '/' + slice_id;
+        })
+        .style("border", function(slice_id) {
+            if (current_config.slice_id == slice_id) {
+                return "5px solid orange";
+            } else {
+                return "5px";
+            }
+        });
+
+    // highlight selected row
+    d3.select("#image_table")
+        .selectAll("tr")
+        .style("border", function(row_id) {
+            if (row_id == current_row) {
+                return "8px solid orange";
+            }
+            else {
+                return "8px";
+            }
+        });
+
+    // TODO: throughout this section make the async calls check to be sure the interface hasn't changed again when they do their update
+    var modalities = ['t1', 't2', 't2flair', 't1ce'];
+    row_states[current_row] = get_ui_state();
+    // Update each row
+    row_states.forEach(function(row_state, row_id) {
+        var image_row = d3.select("#image_row_" + row_id);
+        var row_config = row_state['current_config'];
+        var name = "";
+        var slice_id = global_slice_id;
+        //var slice_id = row_config.slice_id;
+        // Update each result canvas in that row
+        modalities.forEach(function(modality) {
+            var canvas = image_row.select("#canvas_" + modality).node();
+            var ctx = canvas.getContext('2d');
+            //ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // enumerate layers that need to be drawn in the order to draw them
+            var layers = [];
+            name = "";
+
+            // image
+            if (slice_id !== null) {
+                var layer_url = base_url + 'slices/' + entry_id + '/' + slice_id + '/' + modality;
+                layers.push({url: layer_url});
+            }
+
+            // counterfactual (inpainted) image
+            var counter_cls = row_state['counter_cls']; //d3.select('input[name="counter_select"]:checked').node().value;
+            var show_inpaint = row_state['check_values'][10]; //d3.select("#inpaint_show_image").property("checked");
+            if (show_inpaint && (counter_cls != "None")) {
+                var layer_url = base_url + 'counter_slices/' + entry_id + '/' + slice_id + '/' + modality + '/' + counter_cls;
+                layers.push({url: layer_url});
+                name += "Counterfactual Image (" + counter_cls + ")<br><br>";
+            }
+
+            // TODO: add to segment list so it can be in front of segments
+            // red box that shows which area was inpainted
+            var show_box = row_state['check_values'][9]; //d3.select("#inpaint_show_box").property("checked");
+            if (show_box && (counter_cls != "None")) {
+                var layer_url = base_url + 'counter_boxes/' + entry_id + '/' + slice_id + '/' + modality + '/' + counter_cls;
+                layers.push({url: layer_url});
+                name += "Counterfactual Box (" + counter_cls + ")<br><br>";
+            }
+
+            // TODO: add to segment list so it can be in front of segments
+            // show counter segmentation
+            var show_counter_seg = row_state['check_values'][11]; //d3.select("#counter_seg").property("checked");
+            if (show_counter_seg && (counter_cls != "None")) {
+                var layer_url = base_url + 'segment/counter/' + counter_cls + '/' + entry_id + '/' + slice_id + '/' + modality;
+                layers.push({url: layer_url});
+                name += "Counterfactual Segmentation (" + counter_cls + ")<br><br>";
+            }
+
+            // shole counter attributions
+            var show_counter_att = row_state['check_values'][12]; //d3.select("#counter_attributions").property("checked");
+            if (show_counter_att && (counter_cls != "None")) {
+                // Manually cache json by checking for a significant change in
+                // state since the last update.
+                last_update_state = row_state['last_update_state_' + modality];
+                var needs_update = (
+                    (last_update_state === undefined)                                     ||
+                    (row_state['counter_cls'] != last_update_state['counter_cls'])        ||
+                    // TODO: wrong?
+                    (entry_id != last_update_state['current_config'].entry_id) ||
+                    // TODO: wrong?
+                    (slice_id != last_update_state['current_config'].slice_id)
+                );
+                if (needs_update) {
+                    row_state['last_update_state_' + modality] = row_state;
+                    var stat_url = base_url + 'counterfactual/stats/' + counter_cls + '/' + entry_id + '/' + slice_id + '/' + modality;
+                    d3.json(stat_url, function(stats) {
+                        image_row.select("#stat_" + modality)
+                            .text(stats["diff_dice"].toFixed(3))
+                            .style("display", null)
+                            .style("background-color", stats["diff_color"]);
+                    });
+                }
+                name += "Counterfactual Attributions (" + counter_cls + ")<br><br>";
+            } else {
+                image_row.select("#stat_" + modality)
+                    .style("display", "none");
+            }
+
+            // gradcam
+            var target_cls = row_state['gradcam']['target_cls']; //d3.select('input[name="gradcam_cls_select"]:checked').node().value;
+            var has_gradcam = (target_cls != "None");
+            if (has_gradcam) {
+                var target_region = row_state['gradcam']['target_region']; //d3.select('input[name="gradcam_region_select"]:checked').node().value;
+                var layer = row_state['gradcam']['layer']; //d3.select('input[name="gradcam_layer_select"]:checked').node().value;
+                var norm_type = row_state['gradcam']['norm_type']; //d3.select('input[name="gradcam_norm_select"]:checked').node().value;
+                var layer_url = '/gradcam/' + entry_id + '/' + slice_id + '/' + modality + '/' + target_cls + '/' + target_region + '/' + layer + '/' + norm_type;
+                var slider_val = row_state['gradcam']['opacity']; //d3.select("#gradcam_opacity_slider").node().value;
+                layers.push({url: layer_url, opacity: slider_val / 100.});
+                name += "GradCAM <br>";
+            }
+
+            // segments
+            row_config.segments.forEach(function(segment) {
+                var layer_url = base_url + 'segment/' + segment.source + '/' + segment.label + '/' + entry_id + '/' + slice_id + '/' + modality;
+                layers.push({url: layer_url});
+            });
+            console.log(layers);
+
+            // actually load the layers, drawing only after everything is loaded
+            var load_count = layers.length;
+            function draw_when_loaded() {
+                load_count--;
+                if (load_count == 0) draw_images();
+            }
+            function draw_images() {
+                for (var i = 0; i < images.length; i++) {
+                    ctx.globalAlpha = layers[i].opacity;
+                    ctx.drawImage(images[i],0,0,canvas.width,canvas.height);
+                    ctx.globalAlpha = 1.0;
+                }
+            }
+            var images = [];
+            for (var i = 0; i < layers.length; i++) {
+                var img = new Image();
+                img.onload = draw_when_loaded;
+                img.onerror = function() {
+                    console.log('error');
+                };
+                images.push(img);
+            }
+            for (var i = 0; i < layers.length; i++) {
+                images[i].src = layers[i].url;
+            }
+        });
+        image_row.select("#th_label_" + row_id)
+                .html(name);
+    });
+}
+
+initialize(true);
+
+
+</script>
+
+
+
+</body>
+</html>

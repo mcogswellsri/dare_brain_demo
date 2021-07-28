@@ -1,0 +1,6 @@
+attUNet_BraTS_Segmentation_2D/data/
+attUNet_BraTS_Segmentation_2D/results/
+experiments/
+old/
+data/
+.git/

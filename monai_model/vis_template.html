@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<html lang="en">
+<head>
+    <title>My Webpage</title>
+
+	<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+
+	<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
+	<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
+
+    <script src="https://d3js.org/d3.v4.js"></script>
+
+<style>
+
+html {
+    display: block;
+}
+
+.over {
+    height: 200px;
+    left: 0px;
+    top: 0px;
+    z-index: 10;
+    transition: .3s;
+}
+img.over:hover {
+    opacity: 0.0;
+}
+.transparent {
+    opacity: .4;
+}
+
+.under {
+    height: 200px;
+    position: absolute;
+    z-index: -1;
+}
+
+.example_table {
+    margin: 10px;
+    position: relative;
+    z-index: 0;
+    background-color: rgb(204, 204, 255);
+    padding: 10px;
+    border-collapse: initial;
+    outline: 2px solid black;
+}
+</style>
+
+</head>
+<body>
+
+<h1>
+Layer identification key
+</h1>
+
+<img src="unet_annotated_diagram.png" width="700">
+
+<h1>
+How to interpret different visualization types
+</h1>
+
+<p>
+Class C GradCAM: GradCAM of mean C of logits with respect to indicated layer L. <br>
+How to interpret it: The highlighted regions are "important" in the sense that
+increasing the activation values of layer L in the highlighted regions
+will increase the models confidence in its segmentation of C.
+</p>
+
+<p>
+Class C Neg GradCAM: Negative GradCAM of mean of C logits with respect to indicated layer L. <br>
+How to interpret it: The highlighted regions are "important" in the sense that
+increasing the activation values of layer L in the highlighted regions
+will increase the models confidence in its segmentation of C.
+</p>
+
+<h1>
+Visualization results
+</h1>
+
+<div>
+<table id="main">
+<tr id="main_row">
+
+</tr>
+</table>
+</div>
+
+<script>
+
+d3.json("vis_meta.json", function(data) {
+    var modalities = ["select_box", "t1", "t1ce", "t2", "t2flair"];
+    var overlay_types = ['Input', 'WT Prediction', 'WT Ground Truth',
+                //'Input ET GradCAM Alphas',
+                //'Input TC GradCAM Alphas',
+                //'Input WT GradCAM Alphas',
+                //'Input ET FN GradCAM Alphas',
+                //'Input TC FN GradCAM Alphas',
+                //'Input WT FN GradCAM Alphas',
+                //'Input WT FP GradCAM Alphas'
+                //'WT FP', 'l2 high res WT GradCAM', 'l2 high res WT FP GradCAM', 'l2 high res WT FN GradCAM'
+                //'WT FP', 'l2 high res WT GradCAM', 'l2 high res WT FP GradCAM', 'l2 high res WT FP GradCAM Diff',
+                //'WT FN', 'l2 high res WT GradCAM', 'l2 high res WT FN GradCAM', 'l2 high res WT FN GradCAM Diff'
+                'WT Uncertain',
+                'l2 high res WT Uncertain GradCAM',
+                'l2 high res WT FP GradCAM',
+                'l2 high res WT FN GradCAM',
+                'l2 high res WT TP GradCAM',
+                'l2 high res WT TN GradCAM',
+                'l2 high res WT GradCAM'
+                //'l3 low res WT FP GradCAM'
+    ];
+
+    // one td per example, each with its own table to organize visualizations
+    var exampleRow = d3.select("#main_row")
+        .selectAll("td")
+        .data(data.examples);
+    var exampleRowEnter = exampleRow.enter()
+        .append("td")
+        .text(function(ex) { return ex.ex_name; })
+        .append("table")
+        .classed("example_table", true);
+    exampleRow = exampleRow.merge(exampleRowEnter);
+
+    // for the internal tables, one row per modality
+    var modRow = exampleRow.selectAll('tr')
+        .data(modalities);
+    var modRowEnter = modRow.enter()
+        .append('tr');
+    modRow = modRow.merge(modRowEnter);
+
+    // visualize an initial list of overlays including the input
+    update(overlay_types);
+
+    // allow changes to the list of overlays being displayed
+    function update(overlays) {
+        // one column per type of overlay
+        var cell = modRow.selectAll('td')
+            .data(function(modality) {
+                var ex = d3.select(this.parentNode).datum();
+                var colData = [];
+                overlays.forEach(function(overlay, overlay_idx) {
+                    var dat = {
+                        'modality': modality,
+                        'overlay': overlay,
+                        'ex': ex,
+                        'overlay_idx': overlay_idx,
+                    };
+                    if (modality != 'select_box') {
+                        dat['under_src'] = ex.input[modality];
+                        dat['over_src'] = get_overlay_src(ex, overlay, modality);
+                    }
+                    colData.push(dat);
+                });
+                return colData;
+            });
+        cell.exit().remove();
+        var cellEnter = cell.enter()
+            .append('td');
+        //cellEnter.append(function(d) { return document.createElement('img'); });
+        cellEnter.append(function(d) {
+            if (d.modality == 'select_box') {
+               return document.createElement('select');
+            } else {
+               return document.createElement('div');
+            }
+        });
+
+        // add images
+        cellEnter.select('div')
+            .text(function(d) {
+                if (d.modality == 't1') { return 'T1'; }
+                else if (d.modality == 't1ce') { return 'T1 CE'; }
+                else if (d.modality == 't2') { return 'T2'; }
+                else if (d.modality == 't2flair') { return 'T2 Flair'; }
+            })
+            .append('br');
+        cellEnter.select('div')
+            .append('img')
+            .classed('under', true);
+        cellEnter.select('div')
+            .append('img')
+            .classed('over', true)
+            .classed('transparent', function(d) {
+                if (d.overlay.startsWith('ET') ||
+                    d.overlay.startsWith('TC') ||
+                    d.overlay.startsWith('WT')) {
+                    return false;
+                }
+                return true;
+            });
+
+        // add overlay options
+        var options = cellEnter.select('select')
+            .selectAll('option')
+            .data(function(d) { return get_overlay_list(d.ex); });
+        options.enter()
+            .append('option')
+            .attr('value', function(d) { return d.name; })
+            .text(function(d) { return d.name; });
+
+        // change the overlay when a new one is selected
+        cellEnter.select('select')
+            .on('change', function(d) {
+                var new_overlay = d3.select(this).property('value');
+                overlay_types[d.overlay_idx] = new_overlay;
+                update(overlay_types);
+            });
+
+        cell = cell.merge(cellEnter);
+        // actually display the right images
+        cell.select('div')
+          .selectAll('img')
+            .attr('src', function() {
+                var sel = d3.select(this);
+                // the selectAll('img') changes the data bind
+                var d = d3.select(this.parentNode).datum();
+                if (sel.classed('under')) {
+                    return d.under_src;
+                }
+                else if (sel.classed('over')) {
+                    return d.over_src;
+                }
+            });
+
+        // update the drop downs so they reflect the current overlay
+        cell.select('select')
+            .property('value', function(d) {
+                return overlays[d.overlay_idx];
+            });
+
+    }
+
+
+    function get_overlay_list(ex) {
+        var options = [
+            {'name': 'Input'},
+            {'name': 'ET Prediction'},
+            {'name': 'TC Prediction'},
+            {'name': 'WT Prediction'},
+            {'name': 'ET Ground Truth'},
+            {'name': 'TC Ground Truth'},
+            {'name': 'WT Ground Truth'}
+        ];
+        ex.error_masks.forEach(function(err) {
+            options.push({
+                'name': err.name,
+            });
+        });
+        ex.visualizations.forEach(function(vis, idx) {
+            options.push({
+                'layer': vis.layer,
+                'vis_type': vis.vis_type,
+                'name': vis_to_name(vis),
+                'idx': idx,
+            });
+        });
+        return options;
+    }
+
+    function get_overlay_src(ex, overlay, modality) {
+        if (overlay == 'Input') {
+            return ex.input[modality];
+        }
+        else if (overlay == 'ET Prediction') { return ex.preds.et; }
+        else if (overlay == 'TC Prediction') { return ex.preds.tc; }
+        else if (overlay == 'WT Prediction') { return ex.preds.wt; }
+        else if (overlay == 'ET Ground Truth') { return ex.ground_truth.et; }
+        else if (overlay == 'TC Ground Truth') { return ex.ground_truth.tc; }
+        else if (overlay == 'WT Ground Truth') { return ex.ground_truth.wt; }
+
+        // error mask
+        var i;
+        for (i = 0; i < ex.error_masks.length; i++) {
+            if (ex.error_masks[i].name == overlay) {
+                return ex.error_masks[i].path;
+            }
+        }
+
+        // else assume it's a visualiztion
+        var vis_idx = vis_name_to_idx(overlay, modality, ex.visualizations);
+        console.log(vis_idx);
+        console.log(overlay);
+        console.log(modality);
+        return ex.visualizations[vis_idx].path;
+    }
+
+    function vis_to_name(vis) {
+        return vis.layer + ' ' + vis.vis_type;
+    }
+
+    function vis_name_to_idx(vis_name, modality, visualizations) {
+        var modality_idx = {
+            't1': 0,
+            't2': 1,
+            't2flair': 2,
+            't1ce': 3,
+        }[modality];
+        var idx;
+        for (idx = 0; idx < visualizations.length; idx++) {
+            var vis = visualizations[idx];
+            if (vis_to_name(vis) == vis_name) {
+                if ((vis.modality === undefined) || (vis.modality == modality_idx)) {
+                    return idx;
+                }
+            }
+        }
+    }
+
+});
+</script>
+
+</body>
+</html>
