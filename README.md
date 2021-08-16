@@ -45,7 +45,7 @@ $ cp inpaint_config_files/inpaint.yml generative_inpainting/
 directory at `data/BrATS/MICCAI_BraTS2020_TrainingData/`.
 
 4. Download the segmentation model and generative model files from
-[dare_brain_demo_files.zip](TODO) and extract that file inside the root of
+[dare_brain_demo_files.zip](https://www.dropbox.com/s/a53a6pgjceg262f/dare_brain_demo_files.zip?dl=0) and extract that file inside the root of
 this repository.
 
 Starting the server
